@@ -6,12 +6,24 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:gen": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset --force",
+    "db:status": "prisma migrate status"
   },
   "dependencies": {
+    "@auth/core": "^0.40.0",
+    "@auth/prisma-adapter": "^2.10.0",
+    "@modelcontextprotocol/sdk": "^1.15.1",
+    "@prisma/client": "^6.11.1",
+    "@vercel/mcp-adapter": "^0.11.2",
+    "crypto": "^1.0.1",
+    "next": "15.3.5",
+    "prisma": "^6.11.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "next": "15.3.5"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "typescript": "^5",
