@@ -308,7 +308,7 @@ const handler = async (req: Request) => {
       // Optionally add server capabilities here
     },
     {
-      basePath: "/mcp",
+      basePath: "/",
       verboseLogs: true,
       redisUrl: process.env.REDIS_URL,
     }
