@@ -238,10 +238,8 @@ const handler = async (req: Request) => {
             };
           }
 
-          // Get user's access token from NextAuth (assumes Google provider)
-          // You may need to adjust this depending on your NextAuth config
+          // Get user's Google account from DB
           const email = session.user.email;
-          // Fetch the user's account from the database
           const account = await prisma.account.findFirst({
             where: {
               provider: "google",
@@ -259,11 +257,55 @@ const handler = async (req: Request) => {
               ],
             };
           }
-          const accessToken = account.access_token;
-
+          let accessToken = account.access_token;
+          // Check if token expired
+          const now = Math.floor(Date.now() / 1000);
+          if (account.expires_at && account.expires_at < now) {
+            // Refresh token
+            if (!account.refresh_token) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: "Google refresh token not found for user.",
+                  },
+                ],
+              };
+            }
+            const params = new URLSearchParams({
+              client_id: process.env.GOOGLE_CLIENT_ID!,
+              client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+              refresh_token: account.refresh_token,
+              grant_type: "refresh_token",
+            });
+            const resp = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: params.toString(),
+            });
+            const data = await resp.json();
+            if (!data.access_token) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: "Failed to refresh Google access token.",
+                  },
+                ],
+              };
+            }
+            accessToken = data.access_token;
+            // Update DB
+            await prisma.account.update({
+              where: { id: account.id },
+              data: {
+                access_token: data.access_token,
+                expires_at: data.expires_in ? now + data.expires_in : null,
+              },
+            });
+          }
           // Send email using Gmail API
           const gmailApiUrl = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
-          // Construct raw email (RFC 5322)
           const rawEmail = [
             `To: ${to}`,
             `Subject: ${subject}`,
@@ -271,9 +313,7 @@ const handler = async (req: Request) => {
             "",
             body,
           ].join("\r\n");
-          // Base64 encode (URL-safe)
           const base64Encoded = Buffer.from(rawEmail).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
           const gmailRes = await fetch(gmailApiUrl, {
             method: "POST",
             headers: {
@@ -297,7 +337,7 @@ const handler = async (req: Request) => {
             content: [
               {
                 type: "text",
-                text: `Test email sent to ${to} successfully!`,
+                text: `Email sent to ${to} successfully!`,
               },
             ],
           };
