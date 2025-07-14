@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     `${request.nextUrl.protocol}//${request.nextUrl.host}`;
 
   const metadata = {
-    resource: `${baseUrl}/sse`,
+    resource: `${baseUrl}/mcp`,
     authorization_servers: [baseUrl],
     scopes_supported: ["api:read", "api:write"],
     bearer_methods_supported: ["header"],

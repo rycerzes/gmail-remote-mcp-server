@@ -40,7 +40,19 @@ export default async function AuthorizePage({
     return redirect(loginUrl.toString());
   }
 
+  // Debug logging
+  console.log('OAuth Authorization Request:', {
+    clientId,
+    redirectUri,
+    responseType,
+    state,
+    code_challenge,
+    code_challenge_method,
+    allParams: params
+  });
+
   if (!clientId || !redirectUri || responseType !== 'code') {
+    console.log('Invalid authorization request - missing required params');
     return (
       <main className="flex items-center justify-center h-screen">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-sm w-full text-center">
@@ -58,7 +70,47 @@ export default async function AuthorizePage({
     where: { clientId },
   });
 
-  if (!client || !client.redirectUris.includes(redirectUri)) {
+  console.log('Client lookup result:', {
+    clientId,
+    clientFound: !!client,
+    clientRedirectUris: client?.redirectUris,
+    requestedRedirectUri: redirectUri,
+    isRedirectUriValid: client?.redirectUris.includes(redirectUri)
+  });
+
+  // Auto-register client if it doesn't exist
+  let finalClient = client;
+  if (!client) {
+    console.log('Client not found, auto-registering...');
+    try {
+      // Use client_name and client_secret from params if provided
+      const autoName = typeof params.client_name === 'string' ? params.client_name : 'Auto-registered Client';
+      const autoSecret = typeof params.client_secret === 'string' ? params.client_secret : '';
+      finalClient = await prisma.client.create({
+        data: {
+          clientId: clientId,
+          name: autoName,
+          redirectUris: [redirectUri],
+          clientSecret: autoSecret,
+          userId: null,
+        },
+      });
+      console.log('Client auto-registered successfully:', finalClient.clientId);
+    } catch (error) {
+      console.log('Failed to auto-register client:', error);
+      return (
+        <main className="flex items-center justify-center h-screen">
+          <div className="bg-white p-8 rounded-lg shadow-md max-w-sm w-full text-center">
+            <h1 className="text-2xl font-bold mb-4">Error</h1>
+            <p>Failed to register OAuth client.</p>
+          </div>
+        </main>
+      );
+    }
+  }
+
+  if (!finalClient || !finalClient.redirectUris.includes(redirectUri)) {
+    console.log('Invalid client or redirect URI error');
     return (
       <main className="flex items-center justify-center h-screen">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-sm w-full text-center">
@@ -78,7 +130,7 @@ export default async function AuthorizePage({
       throw new Error('No session found during consent handling.');
     }
 
-    if (!client) throw new Error('Client not found during consent handling.');
+    if (!finalClient) throw new Error('Client not found during consent handling.');
 
     const consent = formData.get('consent');
 
@@ -99,7 +151,7 @@ export default async function AuthorizePage({
       data: {
         code: authorizationCode,
         expiresAt,
-        clientId: client.id,
+        clientId: finalClient.id,
         userId: session.user.id,
         redirectUri: redirectUri,
         codeChallenge: code_challenge,
@@ -120,7 +172,7 @@ export default async function AuthorizePage({
         <div className="text-center">
           <p className="mb-2">
             The application{' '}
-            <strong className="font-medium">{client.name}</strong> is
+            <strong className="font-medium">{finalClient.name}</strong> is
             requesting access to your account.
           </p>
           <p className="text-sm text-gray-600">
